@@ -46,45 +46,57 @@ def find_files_with_pattern(directory, pattern):
     return matching_files
 
 def merge_shapefiles_to_png(classes, shapefile_paths, tif_path, output_png, class_colors):
+    """
+    Merges multiple shapefiles into a single PNG image based on specified class colors.
+
+    Parameters:
+    - classes: List of class names.
+    - shapefile_paths: Dictionary mapping each class name to its shapefile path.
+    - tif_path: Path to the reference TIFF file.
+    - output_png: Path to the output PNG file.
+    - class_colors: Dictionary mapping each class name to an RGB tuple.
+    """
     shapefiles = {}
     for cls in classes:
-        if cls in shapefile_paths:
-            shapefile_path = shapefile_paths[cls]
-            if os.path.exists(shapefile_path):
-                shapefiles[cls] = gpd.read_file(shapefile_path)
-            else:
-                shapefiles[cls] = None
-            print(f"Loaded shapefile '{cls}' from '{shapefile_path}'")
+        shapefile_path = shapefile_paths.get(cls)
+        if shapefile_path and os.path.exists(shapefile_path):
+            shapefiles[cls] = gpd.read_file(shapefile_path)
+        else:
+            shapefiles[cls] = None
+        print(f"Loaded shapefile for class '{cls}': {shapefile_path}")
 
+    # Open the reference TIF to get image properties
     with rasterio.open(tif_path) as src:
         transform = src.transform
-        crs = src.crs
-        width = src.width
-        height = src.height
+        width, height = src.width, src.height
 
+    # Create an empty RGB image
     img = np.zeros((height, width, 3), dtype=np.uint8)
 
+    # Rasterize all classes and colors at once
+    shapes = []
     for cls, shapefile in shapefiles.items():
-        color = class_colors[cls]
-        if shapefile is None:
-            print(f"No shapefile found for class '{cls}', skipping.")
-            continue
+        if shapefile is not None:
+            color = class_colors[cls]
+            print(f"Applying color {color} for class '{cls}'")
+            for geom in shapefile.geometry:
+                if geom.is_valid:
+                    shapes.append((geom, color))
+                else:
+                    print(f"Invalid geometry found in class '{cls}', skipping.")
 
-        valid_geometries = [geom for geom in shapefile.geometry if geom.is_valid]
-        shapes = ((geom, color) for geom in valid_geometries)
+    # Rasterize the shapes into a mask, assigning color values directly
+    mask = rasterize(
+        shapes=shapes,
+        out_shape=(height, width),
+        transform=transform,
+        fill=0  # Use (0,0,0) for fill if no data, to minimize black spots
+    )
 
-        try:
-            mask = rasterize(
-                shapes=shapes,
-                out_shape=(height, width),
-                transform=transform,
-                fill=0
-            )
-            for channel in range(3):
-                img[:, :, channel] = np.where(mask != 0, color[channel], img[:, :, channel])
-        except Exception as e:
-            print(f"Error rasterizing shapefile '{cls}': {e}")
+    # Assign mask directly to image, assuming shape color values are set in shapes
+    img = np.dstack((mask[..., 0], mask[..., 1], mask[..., 2]))
 
+    # Save the image
     plt.imsave(output_png, img)
     print(f"Saved PNG image to: {output_png}")
 
