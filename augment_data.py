@@ -120,7 +120,7 @@ def augment_images(file_paths, augment_folder, num_augmentations=10, save_pngs=F
         augmented_tif_image = vflip(augmented_tif_image)
 
       # Randomly rotate the image by a degree between -30 and 30
-      angle = random.randint(-30, 30)
+      angle = random.choice([0, 90, 1800, 270])
       if angle != 0:
         augment['rotate'] = angle
         augmented_mask_image = rotate(augmented_mask_image, angle)
@@ -180,12 +180,12 @@ def split_data(files, train_ratio=0.6, val_ratio=0.3, test_ratio=0.1):
 def copy_files_with_masks(files, destination_folder, source_directory):
     os.makedirs(destination_folder, exist_ok=True)
     for file in files:
-        shutil.copy(file, destination_folder)
+        shutil.move(file, destination_folder)
         # Find and copy the corresponding mask file
         base_name = os.path.basename(file).replace('_sat.tif', '')
         mask_file = os.path.join(source_directory, f'{base_name}_mask.png')
         if os.path.exists(mask_file):
-            shutil.copy(mask_file, destination_folder)
+            shutil.move(mask_file, destination_folder)
         else:
             print(f"Mask file not found for {file}")
 
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     parser.add_argument('source_folder', type=str, help='Directory containing the source images')
     parser.add_argument('--color_pixel_rate', type=float, default=0.3, help='Color pixel rate threshold')
     parser.add_argument('--color', type=int, nargs=3, default=[0, 255, 0], help='Color to check for')
-    parser.add_argument('--num_augmentations', type=int, default=10, help='Number of augmentations per image')
+    parser.add_argument('--num_augmentations', type=int, default=5, help='Number of augmentations per image')
     parser.add_argument('--split_folder', type=str, default=None, help='Split folder for augmented image dataset')
     args = parser.parse_args()
 
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     copy_files(source_folder, augment_folder)
 
     print('Augmenting images...')
-    augment_images(low_rate_color_images, augment_folder, num_augmentations=10)
+    augment_images(low_rate_color_images, augment_folder, num_augmentations=args.num_augmentations)
     print('Images augmented successfully.')
 
     split_folder = args.split_folder if args.split_folder else source_folder + '_augmented_dataset'
