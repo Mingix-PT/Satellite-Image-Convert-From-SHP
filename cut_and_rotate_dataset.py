@@ -118,12 +118,12 @@ def split_data(files, train_ratio=0.6, val_ratio=0.3, test_ratio=0.1):
 def copy_files_with_masks(files, destination_folder, split_folder):
     os.makedirs(destination_folder, exist_ok=True)
     for file in files:
-        shutil.copy(file, destination_folder)
+        shutil.move(file, destination_folder)
         # Find and copy the corresponding mask file
         base_name = os.path.basename(file).replace('_sat.tif', '')
         mask_file = os.path.join(split_folder, f'{base_name}_mask.png')
         if os.path.exists(mask_file):
-            shutil.copy(mask_file, destination_folder)
+            shutil.move(mask_file, destination_folder)
         else:
             print(f"Mask file not found for {file}")
 
@@ -267,6 +267,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, help='Output folder path')
     parser.add_argument('--rotate', action='store_true', help='Rotate images', default=False)
     parser.add_argument('--tile_size', type=int, default=64, help='Tile size for cutting images')
+    parser.add_argument('--black_pixel_rate', type=float, default=0.3, help='Maximum black pixel rate')
     args = parser.parse_args()
 
     output_folder = args.output
@@ -292,12 +293,12 @@ if __name__ == "__main__":
 
     if args.rotate:
         angle = 45
-        rotate_images_in_folder(input_folder)
+        rotate_images_in_folder(input_folder, output_folder_path=input_folder, angle=angle)
 
     cut_folder = input_folder + '_cut'
     cut_images_in_folder(input_folder, cut_folder, tile_size)
 
-    max_black_pixel_rate = 0.3
+    max_black_pixel_rate = args.black_pixel_rate
     top_images = find_images_below_black_pixel_rate(cut_folder, max_black_pixel_rate)
     filtered_folder = cut_folder + '_low_black_pixel'
     save_results_to_file(top_images, output_file=f'{filtered_folder}.txt')
@@ -325,5 +326,9 @@ if __name__ == "__main__":
     copy_files_with_masks(train_files, train_folder, split_folder)
     copy_files_with_masks(val_files, val_folder, split_folder)
     copy_files_with_masks(test_files, test_folder, split_folder)
+
+    # Delete all the intermediate folders
+    shutil.rmtree(cut_folder)
+    shutil.rmtree(filtered_folder)
 
     print("Data split and copied successfully.")
