@@ -9,6 +9,16 @@ from PIL import Image, ImageEnhance
 import argparse
 import glob
 from sklearn.model_selection import train_test_split
+from collections import defaultdict
+
+color_to_class = {
+  (0, 0, 0): 'unidentifiable',
+  (0, 0, 255): 'bamboo',
+  (0, 255, 0): 'forest',
+  (255, 0, 0): 'rice_field',
+  (0, 255, 255): 'water',
+  (255, 255, 0): 'residential',
+}
 
 green_color = [0, 255, 0]
 
@@ -32,9 +42,9 @@ def find_images_below_color_pixel_rate(directory, color, color_pixel_rate):
 
     for filename in os.listdir(directory):
         if filename.endswith('.png'):
-            if color == green_color and filename.startswith('QuanSon'):
-                print(f'Skipping {filename}...')
-                continue
+            # if color == green_color and filename.startswith('QuanSon'):
+                # print(f'Skipping {filename}...')
+                # continue
             image_path = os.path.join(directory, filename)
             color_pixel_rate = calculate_color_pixel_rate(image_path, color)
             if color_pixel_rate <= color_pixel_rate:
@@ -189,6 +199,35 @@ def copy_files_with_masks(files, destination_folder, source_directory):
         else:
             print(f"Mask file not found for {file}")
 
+def calculate_color_distribution(folder_path):
+    color_count = defaultdict(int)
+    total_pixels = 0
+
+    # Iterate through all PNG files in the folder
+    print(f"Nummber of files in folder: {len(os.listdir(folder_path))}")
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.png'):
+            image_path = os.path.join(folder_path, filename)
+            image = Image.open(image_path).convert('RGB')
+            pixels = np.array(image)
+
+            # Reshape the image array to list all pixels in RGB format
+            pixels = pixels.reshape(-1, 3)
+            total_pixels += len(pixels)
+
+            # Count each unique color
+            for color in pixels:
+                color_tuple = tuple(color)
+                color_count[color_tuple] += 1
+
+    # Calculate percentage distribution of each color
+    color_distribution = {color: (count / total_pixels) for color, count in color_count.items()}
+
+    # Sort colors by percentage for better readability
+    sorted_color_distribution = dict(sorted(color_distribution.items(), key=lambda item: item[1], reverse=True))
+
+    return sorted_color_distribution
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Augment satellite images.')
     parser.add_argument('source_folder', type=str, help='Directory containing the source images')
@@ -232,3 +271,13 @@ if __name__ == '__main__':
     copy_files_with_masks(val_files, val_folder, augment_folder)
     copy_files_with_masks(test_files, test_folder, augment_folder)
     print('Data split and copied successfully.')
+
+    print("Calculating class distribution:")
+    folder_paths = ['train', 'val', 'test']
+    for folder_path in folder_paths:
+        full_path = os.path.join(split_folder, folder_path)
+        print(f"\nColor distribution for {folder_path}:")
+        color_distribution = calculate_color_distribution(full_path)
+        for color, percentage in color_distribution.items():
+            if color in color_to_class:
+                print(f"{color_to_class[color]}: {percentage:.4f}")

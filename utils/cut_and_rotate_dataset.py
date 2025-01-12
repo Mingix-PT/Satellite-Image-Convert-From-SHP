@@ -64,7 +64,7 @@ def rotate_images_in_folder(input_folder_path, output_folder_path, angle):
 
                 # Use the function in the main code
                 rotated_img, new_w, new_h = rotate_image(img, angle)
-                print(f"Rotated image shape: {rotated_img.shape}")
+                # print(f"Rotated image shape: {rotated_img.shape}")
 
                 # Save the rotated image using OpenCV
                 save_name = filename.replace('_mask.png', '_rotated_mask.png')
@@ -291,18 +291,34 @@ if __name__ == "__main__":
         input_folder = args.input
         normalize_images_in_folder(input_folder)
 
+    rotate_folder = input_folder
+
     if args.rotate:
+        print('Rotating images...')
+        rotate_folder = input_folder + '_rotated'
+        if not os.path.exists(rotate_folder):
+            os.makedirs(rotate_folder)
         angle = 45
-        rotate_images_in_folder(input_folder, output_folder_path=input_folder, angle=angle)
+        rotate_images_in_folder(input_folder, output_folder_path=rotate_folder, angle=angle)
+        # Copy all files from input_folder to rotate_folder
+        for filename in os.listdir(input_folder):
+            src_file = os.path.join(input_folder, filename)
+            dst_file = os.path.join(rotate_folder, filename)
+            shutil.copy(src_file, dst_file)
+        print('Images rotated.')
 
-    cut_folder = input_folder + '_cut'
-    cut_images_in_folder(input_folder, cut_folder, tile_size)
+    cut_folder = rotate_folder + '_cut'
+    print('Cutting images...')
+    cut_images_in_folder(rotate_folder, cut_folder, tile_size)
+    print('Images cut.')
 
+    print('Finding images with low black pixel rate...')
     max_black_pixel_rate = args.black_pixel_rate
     top_images = find_images_below_black_pixel_rate(cut_folder, max_black_pixel_rate)
     filtered_folder = cut_folder + '_low_black_pixel'
     save_results_to_file(top_images, output_file=f'{filtered_folder}.txt')
     copy_images_to_folder(top_images, cut_folder, filtered_folder)
+    print('Images with low black pixel rate found.')
 
     split_folder = filtered_folder
     if not os.path.exists(output_folder):
@@ -322,13 +338,16 @@ if __name__ == "__main__":
     val_folder = os.path.join(output_folder, 'val')
     test_folder = os.path.join(output_folder, 'test')
 
+    print("Splitting files...")
     # Copy the files and their corresponding masks to the respective directories
     copy_files_with_masks(train_files, train_folder, split_folder)
     copy_files_with_masks(val_files, val_folder, split_folder)
     copy_files_with_masks(test_files, test_folder, split_folder)
+    print("Data split and copied successfully.")
 
     # Delete all the intermediate folders
+    print("Cleaning up...")
+    shutil.rmtree(rotate_folder)
     shutil.rmtree(cut_folder)
     shutil.rmtree(filtered_folder)
-
-    print("Data split and copied successfully.")
+    print("Cleanup completed.")

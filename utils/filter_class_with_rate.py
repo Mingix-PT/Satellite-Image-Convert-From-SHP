@@ -14,20 +14,22 @@ def calculate_color_pixel_rate(image_path, color=[0, 0, 0]):
 def find_images_between_color_pixel_rate(input, color, min_color_pixel_rate, max_color_pixel_rate):
     image_color_pixel_rates = []
 
-    for filename in os.listdir(input):
-        if filename.endswith('.png'):
-            image_path = os.path.join(input, filename)
-            color_pixel_rate = calculate_color_pixel_rate(image_path, color)
-            if color_pixel_rate >= min_color_pixel_rate and color_pixel_rate <= max_color_pixel_rate:
-                image_color_pixel_rates.append((filename, color_pixel_rate))
+    for root, dirs, files in os.walk(input):
+        for filename in files:
+            if filename.endswith('.png'):
+                image_path = os.path.join(root, filename)
+                color_pixel_rate = calculate_color_pixel_rate(image_path, color)
+                if min_color_pixel_rate <= color_pixel_rate <= max_color_pixel_rate:
+                    image_color_pixel_rates.append((os.path.relpath(image_path, input), color_pixel_rate))
 
     return image_color_pixel_rates
 
 def save_results_to_file(top_images, output_file):
+    top_images = [(os.path.basename(image), rate) for image, rate in top_images]
     top_images.sort()
     with open(output_file, 'w') as f:
         for image, rate in top_images:
-            f.write(f"{image.replace('_mask.png', '')}\n")
+            f.write(f"{(image.replace('_mask.png', ''))}\n")
 
     print(f"The results have been saved to {output_file}")
 
@@ -64,6 +66,9 @@ if __name__ == '__main__':
 
     if minimum_rate > 1.0 or minimum_rate < 0.0:
         raise ValueError("Minimum rate must be between 0.0 and 1.0")
+
+    if not os.path.exists(input):
+        raise ValueError(f"Input folder {input} does not exist")
 
     filtered_images = find_images_between_color_pixel_rate(input, color, minimum_rate, maximum_rate)
     save_results_to_file(filtered_images, output)
